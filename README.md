@@ -47,10 +47,14 @@ L'interrupteur **Debug** affiche les octets reçus et le nom des boutons dans le
 
 - Les deux moitiés sont deux appareils Bluetooth. La gauche relaie aussi les boutons de la droite ;
   l'app se connecte à toutes les manettes Zwift trouvées et fusionne leurs boutons.
-- Le côté gauche demande une activation quotidienne dans l'app Zwift. Si l'app indique « verrouillée » :
-  ouvrir Zwift, connecter les Click, vérifier qu'ils marchent, fermer Zwift puis **Rechercher les manettes**.
-  Ce verrou n'est pas contourné.
-- Sans le côté gauche, activer **Côté droit seul** : **+** passe la vitesse +, **B** la vitesse −.
+- Zwift veut que le Click V2 soit activé chaque jour dans son app. **Sans activation, il marche quand même** :
+  l'app voit qu'il refuse le `RideOn`, passe en « mode sans Zwift » (plus de `RideOn`, comme BikeControl
+  sans déverrouillage) et le reprend tout seul chaque fois qu'il décroche, environ toutes les minutes
+  d'après BikeControl. Un appui pendant la reconnexion (une seconde ou deux) peut être perdu.
+- Pour éviter ces coupures, l'activation officielle : app Zwift (pas Companion), compte gratuit sans
+  abonnement, connecter le trainer puis le Click, attendre 10 à 30 s, forcer l'arrêt de Zwift, puis
+  **Rechercher les manettes**. Elle dure environ une journée.
+- Si une seule moitié répond, activer **Côté droit seul** : **+** passe la vitesse +, **B** la vitesse −.
 
 ## Correspondance des boutons
 

@@ -16,6 +16,7 @@ import android.bluetooth.le.ScanSettings
 import android.content.Context
 import android.os.Build
 import android.os.Handler
+import android.os.SystemClock
 import io.github.benjamingrall.click2whoosh.core.Zwift
 import io.github.benjamingrall.click2whoosh.core.ZwiftButton
 import io.github.benjamingrall.click2whoosh.core.ZwiftEvent
@@ -29,6 +30,10 @@ import java.util.UUID
  *
  * On se connecte à toutes les manettes trouvées : sur le Click V2, la gauche relaie
  * aussi les boutons de la droite, mais la droite seule marche aussi (mode « côté droit seul »).
+ *
+ * Un Click V2 non activé dans Zwift refuse le RideOn. On passe alors en « mode sans Zwift »,
+ * comme BikeControl sans déverrouillage : plus de RideOn, et reconnexion immédiate chaque
+ * fois que la manette décroche (environ toutes les minutes).
  */
 @SuppressLint("MissingPermission")
 class ZwiftBle(
@@ -169,6 +174,10 @@ class ZwiftBle(
         private var gatt: BluetoothGatt? = null
         private var closed = false
         private var inputSeen = false
+        private var wasConnected = false
+        private var noZwift = false
+        private var readyAt = 0L
+        private var quickLocks = 0
         private val ops = ArrayDeque<Pair<Op, () -> Boolean>>()
         private var waiting: Op? = null
         private val name get() = type.label
@@ -182,6 +191,7 @@ class ZwiftBle(
         fun connect(autoConnect: Boolean) {
             if (closed) return
             inputSeen = false
+            wasConnected = false
             setState(if (autoConnect) "en attente, se reconnectera dès qu'elle se réveille" else "connexion…")
             gatt = try {
                 device.connectGatt(context, autoConnect, this, BluetoothDevice.TRANSPORT_LE)
@@ -217,14 +227,21 @@ class ZwiftBle(
         }
 
         private fun lost(status: Int) {
+            // Mode sans Zwift : la manette décroche régulièrement, on la reprend tout de suite
+            // par une connexion directe (bien plus rapide que l'autoConnect).
+            val fast = noZwift && wasConnected
             reset()
             listener.onButtons(address, name, emptySet())
             if (closed || abandoned) return
-            Hub.log("$name déconnecté (code $status), reconnexion auto dès qu'il se réveille")
+            if (fast) {
+                Hub.debug("$name a décroché (code $status), reconnexion immédiate")
+            } else {
+                Hub.log("$name déconnecté (code $status), reconnexion auto dès qu'il se réveille")
+            }
             setState("déconnecté")
             handler.postDelayed({
-                if (!closed && !abandoned && gatt == null) connect(autoConnect = true)
-            }, RECONNECT_DELAY_MS)
+                if (!closed && !abandoned && gatt == null) connect(autoConnect = !fast)
+            }, if (fast) FAST_RECONNECT_MS else RECONNECT_DELAY_MS)
         }
 
         private fun giveUp(state: String, message: String) {
@@ -271,8 +288,14 @@ class ZwiftBle(
 
         private fun markReady() {
             ready = true
-            setState("prête : appuie sur un bouton")
-            Hub.log("$name connecté, RideOn envoyé")
+            readyAt = SystemClock.elapsedRealtime()
+            if (noZwift) {
+                setState("prête (mode sans Zwift)")
+                Hub.debug("$name reconnecté (mode sans Zwift)")
+            } else {
+                setState("prête : appuie sur un bouton")
+                Hub.log("$name connecté, RideOn envoyé")
+            }
             onLinkReady()
         }
 
@@ -282,6 +305,7 @@ class ZwiftBle(
             handler.post {
                 if (g !== gatt) return@post
                 if (status == BluetoothGatt.GATT_SUCCESS && newState == BluetoothProfile.STATE_CONNECTED) {
+                    wasConnected = true
                     setState("connectée, préparation…")
                     enqueue(Op.MTU) { g.requestMtu(MTU) }
                     enqueue(Op.SERVICES) { g.discoverServices() }
@@ -316,7 +340,11 @@ class ZwiftBle(
                 }
                 enqueue(Op.DESCRIPTOR) { subscribe(g, async, preferIndicate = false) }
                 if (tx != null) enqueue(Op.DESCRIPTOR) { subscribe(g, tx, preferIndicate = true) }
-                enqueue(Op.WRITE) { write(g, rx, Zwift.RIDE_ON).also { if (it) markReady() } }
+                if (noZwift) {
+                    markReady()
+                } else {
+                    enqueue(Op.WRITE) { write(g, rx, Zwift.RIDE_ON).also { if (it) markReady() } }
+                }
                 complete(Op.SERVICES)
             }
         }
@@ -364,12 +392,30 @@ class ZwiftBle(
                     listener.onButtons(address, name, e.pressed)
                 }
                 ZwiftEvent.HandshakeOk -> Hub.debug("$name : RideOn accepté")
-                // On libère la manette pour que Zwift puisse s'y connecter et l'activer.
-                ZwiftEvent.Locked -> giveUp(
-                    "verrouillée (à activer dans Zwift)",
-                    "$name verrouillé. Ouvre l'app Zwift, connecte les Click, vérifie qu'ils marchent, " +
-                        "ferme Zwift puis « Rechercher les manettes ». Sinon, active « Côté droit seul ».",
-                )
+                ZwiftEvent.Locked -> {
+                    listener.onButtons(address, name, emptySet())
+                    // Garde-fou : s'il refuse aussi sans RideOn, ne pas boucler en reconnexion.
+                    if (noZwift && SystemClock.elapsedRealtime() - readyAt < QUICK_LOCK_MS) {
+                        if (++quickLocks >= 3) {
+                            return giveUp(
+                                "verrouillée",
+                                "$name refuse aussi la connexion sans RideOn : il faudra l'activer dans Zwift " +
+                                    "(voir README), ou utiliser « Côté droit seul ».",
+                            )
+                        }
+                    } else {
+                        quickLocks = 0
+                    }
+                    if (!noZwift) {
+                        noZwift = true
+                        Hub.log(
+                            "$name non activé par Zwift : mode sans Zwift (pas de RideOn, reconnexion " +
+                                "immédiate quand il décroche, coupure d'une seconde ou deux possible)",
+                        )
+                    }
+                    // Relance une connexion propre : sans RideOn, ou pour repartir pour une minute.
+                    gatt?.disconnect()
+                }
                 ZwiftEvent.Ignored -> Unit
                 is ZwiftEvent.Unknown -> Hub.debug("$name : message ignoré (${e.reason})")
             }
@@ -419,6 +465,8 @@ class ZwiftBle(
         const val MTU = 247
         const val OP_TIMEOUT_MS = 5_000L
         const val RECONNECT_DELAY_MS = 2_000L
+        const val FAST_RECONNECT_MS = 200L
+        const val QUICK_LOCK_MS = 5_000L
         const val AFTER_READY_MS = 30_000L
         const val RESCAN_MS = 60_000L
     }
