@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Deux chevrons « vitesse + » sur fond orange. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M54,30 L76,52 L69,59 L54,44 L39,59 L32,52 Z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M54,50 L76,72 L69,79 L54,64 L39,79 L32,72 Z" />
+</vector>
