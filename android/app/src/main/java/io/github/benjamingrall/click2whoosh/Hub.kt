@@ -4,6 +4,10 @@ import android.content.Context
 import android.content.SharedPreferences
 import android.os.Handler
 import android.os.Looper
+import io.github.benjamingrall.click2whoosh.core.ButtonChange
+import io.github.benjamingrall.click2whoosh.core.HalfState
+import io.github.benjamingrall.click2whoosh.core.Level
+import io.github.benjamingrall.click2whoosh.core.ZwiftButton
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -13,15 +17,22 @@ import java.util.concurrent.CopyOnWriteArrayList
 /** Journal et état partagés entre le service et l'écran. Les listeners sont appelés sur le thread principal. */
 object Hub {
     interface Listener {
-        fun onLog(line: String)
-        fun onStatus(status: Status)
+        fun onLog(line: String) {}
+        fun onStatus(status: Status) {}
+        /** Boutons appuyés en ce moment (manettes et boutons de test). */
+        fun onPressed(buttons: Set<ZwiftButton>) {}
+        /** Commandes envoyées, et nombre d'apps qui les ont reçues. */
+        fun onAction(changes: List<ButtonChange>, apps: Int) {}
     }
 
     data class Status(
         val running: Boolean = false,
-        val server: String = "",
-        val apps: String = "",
-        val controllers: String = "",
+        val port: Int = 0,
+        val ips: List<String> = emptyList(),
+        val apps: List<String> = emptyList(),
+        val left: HalfState = HalfState(Level.OFF, "non trouvée"),
+        val right: HalfState = HalfState(Level.OFF, "non trouvée"),
+        val scanning: Boolean = false,
     )
 
     private const val MAX_LINES = 500
@@ -33,6 +44,9 @@ object Hub {
     @Volatile var debug = false
 
     @Volatile var status = Status()
+        private set
+
+    @Volatile var pressed: Set<ZwiftButton> = emptySet()
         private set
 
     fun log(message: String) {
@@ -53,6 +67,16 @@ object Hub {
     fun setStatus(s: Status) {
         status = s
         main.post { listeners.forEach { it.onStatus(s) } }
+    }
+
+    fun setPressed(buttons: Set<ZwiftButton>) {
+        if (buttons == pressed) return
+        pressed = buttons
+        main.post { listeners.forEach { it.onPressed(buttons) } }
+    }
+
+    fun action(changes: List<ButtonChange>, apps: Int) {
+        main.post { listeners.forEach { it.onAction(changes, apps) } }
     }
 
     fun addListener(l: Listener) {

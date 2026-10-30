@@ -21,6 +21,9 @@ class ButtonRouter {
         return diff()
     }
 
+    /** Boutons appuyés, toutes sources confondues (pour l'affichage). */
+    fun pressed(): Set<ZwiftButton> = sources.values.flatMapTo(LinkedHashSet()) { it }
+
     fun releaseAll(): List<ButtonChange> {
         sources.clear()
         return diff()

@@ -22,6 +22,7 @@ import io.github.benjamingrall.click2whoosh.core.ButtonChange
 import io.github.benjamingrall.click2whoosh.core.ButtonRouter
 import io.github.benjamingrall.click2whoosh.core.Obc
 import io.github.benjamingrall.click2whoosh.core.ObcTcpServer
+import io.github.benjamingrall.click2whoosh.core.PadState
 import io.github.benjamingrall.click2whoosh.core.ZwiftButton
 import java.io.IOException
 import java.net.Inet4Address
@@ -62,6 +63,9 @@ class BridgeService : Service() {
     private var mdns: MdnsAdvertiser? = null
     private var ble: ZwiftBle? = null
     private val lastButtons = HashMap<String, Set<ZwiftButton>>()
+    // Un bouton de chaque moitié a été reçu d'une vraie manette : la preuve qu'elle marche.
+    private var seenLeft = false
+    private var seenRight = false
     private var wakeLock: PowerManager.WakeLock? = null
     private var multicastLock: WifiManager.MulticastLock? = null
     private var notificationText = ""
@@ -164,15 +168,20 @@ class BridgeService : Service() {
         mdns?.unregister()
         mdns = null
         srv?.stop()
+        seenLeft = false
+        seenRight = false
         Hub.setStatus(Hub.Status())
         Hub.log("Pont arrêté")
     }
 
     private fun send(changes: List<ButtonChange>) {
+        Hub.setPressed(router.pressed())
         if (changes.isEmpty()) return
         val srv = server ?: return
         srv.broadcast(Obc.buttons(changes))
-        Hub.debug("-> app (${srv.clientList.size}) : ${changes.joinToString()}")
+        val apps = srv.clientList.size
+        if (changes.any { it.pressed }) Hub.action(changes, apps)
+        Hub.debug("-> app ($apps) : ${changes.joinToString()}")
     }
 
     private val serverListener = object : ObcTcpServer.Listener {
@@ -204,6 +213,13 @@ class BridgeService : Service() {
             }
             lastButtons[address] = pressed
             send(router.update(address, pressed))
+            val newLeft = !seenLeft && pressed.any { it.left }
+            val newRight = !seenRight && pressed.any { !it.left }
+            if (newLeft || newRight) {
+                seenLeft = seenLeft || newLeft
+                seenRight = seenRight || newRight
+                updateStatus()
+            }
         }
 
         override fun onDevicesChanged() = updateStatus()
@@ -230,19 +246,17 @@ class BridgeService : Service() {
         val srv = server ?: return
         val clients = srv.clientList
         val ips = localIps()
+        val controllers = ble?.snapshot().orEmpty()
+        val scanning = ble?.isScanning == true
         Hub.setStatus(
             Hub.Status(
                 running = true,
-                server = "« ${mdns?.registeredName ?: SERVICE_NAME} », port ${srv.port}" +
-                    if (ips.isEmpty()) "" else " (${ips.joinToString()})",
-                apps = if (clients.isEmpty()) {
-                    "aucune"
-                } else {
-                    clients.joinToString("\n") { c ->
-                        (c.appInfo?.let { "${it.appId} ${it.appVersion}" } ?: "app") + " (${c.address})"
-                    }
-                },
-                controllers = ble?.summary().orEmpty(),
+                port = srv.port,
+                ips = ips,
+                apps = clients.map { c -> c.appInfo?.let { "${it.appId} ${it.appVersion}".trim() } ?: c.address },
+                left = PadState.half(true, controllers, seenLeft, scanning),
+                right = PadState.half(false, controllers, seenRight, scanning),
+                scanning = scanning,
             ),
         )
         val text = "${clients.size} app(s), ${ble?.readyCount() ?: 0} manette(s)"

@@ -29,19 +29,22 @@ Le téléphone doit être en **Wi-Fi**, sur le même réseau que l'appareil qui 
 
 1. Ouvrir click2whoosh, **Démarrer**, accepter les permissions (Bluetooth, notifications).
 2. Dans MyWhoosh : écran **Connexion**, icône **OpenBikeControl**, répondre **Oui** à « click2whoosh ».
-   La ligne « App(s) » de click2whoosh doit afficher MyWhoosh.
-3. En roulant, appuyer sur **Vitesse +** / **Vitesse −** dans click2whoosh : la vitesse doit changer.
+   La pastille « MyWhoosh connecté » passe au vert.
+3. En roulant, toucher **+** ou **−** sur le dessin du Click dans click2whoosh : la vitesse doit changer,
+   et le bandeau « Dernière commande » affiche « envoyée à MyWhoosh ».
 
 **Avec le Click** :
 
 1. Fermer Zwift et BikeControl : le Click ne se connecte qu'à une app à la fois.
-2. Appuyer sur un bouton du Click pour le réveiller. click2whoosh le trouve et s'y connecte
-   (« prête, boutons reçus » après le premier appui).
+2. Appuyer sur un bouton du Click pour le réveiller. click2whoosh le trouve et s'y connecte :
+   le contour de chaque moitié du dessin passe à l'orange (connectée) puis au vert dès qu'un de ses
+   boutons est reçu, et chaque bouton s'allume quand on appuie dessus.
 3. Si MyWhoosh tourne sur le même téléphone, laisser click2whoosh démarré en arrière-plan :
    la notification « click2whoosh actif » montre qu'il tourne toujours.
 
-L'interrupteur **Debug** affiche les octets reçus et le nom des boutons dans le journal ;
-**Copier le journal** permet de le partager en cas de souci.
+Couleurs : vert = ça marche, orange = connecté en attente d'un appui, jaune = en cours, gris = rien.
+L'interrupteur **Debug** ajoute les octets reçus et le nom des boutons au journal (carte « Journal »,
+repliée par défaut) ; **Copier** permet de le partager en cas de souci.
 
 ## Click V2
 
@@ -87,11 +90,13 @@ android/                Projet Gradle (Kotlin, aucune dépendance, minSdk 26, ta
       Obc.kt            Messages OpenBikeControl (boutons, statut, App Info, haptique)
       Zwift.kt          Décodage des manettes Zwift (0x37 Click, 0x23 Click V2 / Ride)
       ButtonRouter.kt   Fusion des manettes, correspondance, envoi sur changement seulement
+      PadState.kt       État affiché pour chaque moitié du Click
       ObcTcpServer.kt   Serveur TCP OBC (port 21587, statut toutes les 30 s)
     ZwiftBle.kt         Scan BLE, connexion GATT, file d'opérations, reconnexion auto
     MdnsAdvertiser.kt   Annonce `_openbikecontrol._tcp` via NsdManager
     BridgeService.kt    Service de premier plan (connectedDevice) qui fait tourner le pont
-    MainActivity.kt     Écran construit en code
+    MainActivity.kt     Écran construit en code (thème sombre)
+    ClickPadView.kt     Dessin du Click : état des moitiés, boutons allumés, test au toucher
 .github/workflows/      Build de l'APK par GitHub Actions
 ```
 

@@ -17,6 +17,7 @@ import android.content.Context
 import android.os.Build
 import android.os.Handler
 import android.os.SystemClock
+import io.github.benjamingrall.click2whoosh.core.ControllerInfo
 import io.github.benjamingrall.click2whoosh.core.Zwift
 import io.github.benjamingrall.click2whoosh.core.ZwiftButton
 import io.github.benjamingrall.click2whoosh.core.ZwiftEvent
@@ -85,11 +86,9 @@ class ZwiftBle(
 
     fun readyCount() = links.values.count { it.ready }
 
-    fun summary(): String = when {
-        links.isNotEmpty() -> links.values.joinToString("\n") { "${it.type.label} : ${it.state}" }
-        scanning -> "recherche en cours…"
-        else -> "aucune"
-    }
+    val isScanning get() = scanning
+
+    fun snapshot(): List<ControllerInfo> = links.values.map { ControllerInfo(it.type, it.state, it.ready, it.inNoZwift) }
 
     private fun startScan() {
         val a = adapter
@@ -176,6 +175,7 @@ class ZwiftBle(
         private var inputSeen = false
         private var wasConnected = false
         private var noZwift = false
+        val inNoZwift get() = noZwift
         private var readyAt = 0L
         private var quickLocks = 0
         private val ops = ArrayDeque<Pair<Op, () -> Boolean>>()

@@ -1,4 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <color name="ic_launcher_background">#FF6A00</color>
+    <!-- Mêmes valeurs que Ui.BG et Ui.ACCENT. -->
+    <color name="bg">#101114</color>
+    <color name="accent">#FF6A00</color>
 </resources>

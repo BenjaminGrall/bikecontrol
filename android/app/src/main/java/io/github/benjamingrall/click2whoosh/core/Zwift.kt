@@ -56,32 +56,40 @@ object Zwift {
     }
 }
 
-enum class ZwiftType(val code: Int, val label: String) {
-    CLICK(0x09, "Click"),
-    CLICK_V2_RIGHT(0x0A, "Click V2 droit"),
-    CLICK_V2_LEFT(0x0B, "Click V2 gauche"),
-    RIDE_RIGHT(0x07, "Ride droit"),
-    RIDE_LEFT(0x08, "Ride gauche"),
+/** [leftHalf] / [rightHalf] : moitiés dont la manette porte les boutons (le Click V1 a les deux). */
+enum class ZwiftType(val code: Int, val label: String, val leftHalf: Boolean, val rightHalf: Boolean) {
+    CLICK(0x09, "Click", true, true),
+    CLICK_V2_RIGHT(0x0A, "Click V2 droit", false, true),
+    CLICK_V2_LEFT(0x0B, "Click V2 gauche", true, false),
+    RIDE_RIGHT(0x07, "Ride droit", false, true),
+    RIDE_LEFT(0x08, "Ride gauche", true, false),
+    ;
+
+    /** La moitié gauche du Click V2 / Ride relaie aussi les boutons de la droite. */
+    val relaysRight get() = leftHalf && !rightHalf
 }
 
-/** Masques du message 0x23. Le Click V1 est ramené dessus : + = SHIFT_UP_R, - = SHIFT_UP_L. */
-enum class ZwiftButton(val mask: Int, val label: String) {
-    LEFT(0x1, "gauche"),
-    UP(0x2, "haut"),
-    RIGHT(0x4, "droite"),
-    DOWN(0x8, "bas"),
-    A(0x10, "A"),
-    B(0x20, "B"),
-    Y(0x40, "Y"),
-    Z(0x80, "Z"),
-    SHIFT_UP_L(0x100, "- (shift_up_l)"),
-    SHIFT_DN_L(0x200, "shift_dn_l"),
-    POWERUP_L(0x400, "powerup_l"),
-    ONOFF_L(0x800, "onoff_l"),
-    SHIFT_UP_R(0x1000, "+ (shift_up_r)"),
-    SHIFT_DN_R(0x2000, "shift_dn_r"),
-    POWERUP_R(0x4000, "powerup_r"),
-    ONOFF_R(0x8000, "onoff_r"),
+/**
+ * Masques du message 0x23. Le Click V1 est ramené dessus : + = SHIFT_UP_R, - = SHIFT_UP_L.
+ * [left] : bouton de la moitié gauche (pavé directionnel et -).
+ */
+enum class ZwiftButton(val mask: Int, val label: String, val left: Boolean) {
+    LEFT(0x1, "gauche", true),
+    UP(0x2, "haut", true),
+    RIGHT(0x4, "droite", true),
+    DOWN(0x8, "bas", true),
+    A(0x10, "A", false),
+    B(0x20, "B", false),
+    Y(0x40, "Y", false),
+    Z(0x80, "Z", false),
+    SHIFT_UP_L(0x100, "- (shift_up_l)", true),
+    SHIFT_DN_L(0x200, "shift_dn_l", true),
+    POWERUP_L(0x400, "powerup_l", true),
+    ONOFF_L(0x800, "onoff_l", true),
+    SHIFT_UP_R(0x1000, "+ (shift_up_r)", false),
+    SHIFT_DN_R(0x2000, "shift_dn_r", false),
+    POWERUP_R(0x4000, "powerup_r", false),
+    ONOFF_R(0x8000, "onoff_r", false),
 }
 
 sealed interface ZwiftEvent {
